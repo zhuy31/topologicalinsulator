@@ -1,3 +1,3 @@
 # topologicalinsulator
-Very bad code for class AIII topological insulator
-Requires OpenMP, Lapack, Blas libararies
+Very bad code for class AIII disordered topological insulators \
+Requires OpenMP, Lapack, Blas libararies \
