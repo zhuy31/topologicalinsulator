@@ -3,7 +3,7 @@ program tm3d
     real(8), parameter :: PI=4.0*ATAN(1.0)
     integer, parameter :: prsc = 4
     integer, parameter :: range1 = 4
-    integer, parameter :: range2 = 24
+    integer, parameter :: range2 = 6
     integer, parameter :: numloops = 1  
     complex(8), dimension(4,4), parameter :: gamma1 = reshape([0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0],[4,4])
     complex(8), dimension(4,4), parameter :: gamma2 = reshape([cmplx(0,0),cmplx(0,0),cmplx(0,0),&
@@ -27,7 +27,7 @@ program tm3d
         !$OMP PARALLEL DO COLLAPSE(2) DEFAULT(NONE) SHARED(cherns, loopnum)
         do k = 1,2*range1*prsc+1
             do l = 1,range2*prsc+1
-                cherns(k,l,loopnum) = ly(4,75,real(k-range1*prsc-1)/real(prsc),real(l-1)/real(prsc),0.0)
+                cherns(k,l,loopnum) = ly(4,100,real(k-range1*prsc-1)/real(prsc),real(l-1)/real(prsc),real(l-1)/real(2*prsc))
             end do
         end do
         !$OMP END PARALLEL DO
@@ -66,7 +66,7 @@ contains
         real, intent(in) :: m, d1, d2
         complex(8), dimension(8*(ls**2),8*(ls**2)) :: transfermatrix0, transfermatrix
         complex(8), dimension(2*(ls**2),2*(ls**2)) :: h1,h2,hopping1,hopping2,hopping1i,hopping2i
-        complex(4), dimension(2*(ls**2),2*(ls**2)) :: c1,c2,e1,e2
+        complex(8), dimension(2*(ls**2),2*(ls**2)) :: c1,c2,e1,e2
         complex(8), dimension(ls**2,ls**2) :: s, s1, t0, m0, t0i
         real(8), dimension(ls**2) :: randomM0, randomT0
         real(8), dimension(is,(ls**2)) :: dvt, dvm
@@ -123,13 +123,11 @@ contains
             hopping1i = matmul(e1,kron(identityM(2),t0i))
             hopping2i = matmul(e2,kron(identityM(2),t0i))
             h1 = hopping1 + kron(pauli4,m0)
+            h2 = conjg(transpose(h1))
 
             transfermatrix0 = 0.0
 
-            transfermatrix0(1:2*(ls**2),1:2*(ls**2)) = -matmul(conjg(transpose(hopping1i)),conjg(transpose(h1)))
-            transfermatrix0(2*(ls**2)+1:4*(ls**2),2*(ls**2)+1:4*(ls**2)) = -matmul(conjg(transpose(hopping2i)),h1)
-
-            transfermatrix0(1:2*(ls**2),1:2*(ls**2)) = -conjg(transpose(matmul(conjg(transpose(h1)),hopping1i)))
+            transfermatrix0(1:2*(ls**2),1:2*(ls**2)) = -matmul(conjg(transpose(hopping1i)),h2)
             transfermatrix0(2*(ls**2)+1:4*(ls**2),2*(ls**2)+1:4*(ls**2)) = -matmul(conjg(transpose(hopping2i)),h1)
 
             transfermatrix0(1:2*(ls**2),4*(ls**2)+1:6*(ls**2)) = -matmul(conjg(transpose(hopping1i)),hopping2)
@@ -245,10 +243,19 @@ contains
         integer :: info, lwork
 
         tm = transferm(ls,is,m,d1,d2)
-        
+        tm = matmul(tm,conjg(transpose(tm)))
+        lwork = -1
 
-        lyapunov = dlog(norm2(abs(tm)))/real(2*ls)
+        allocate(work(1))
+        call zheev('V', 'U', 8 * (ls ** 2), tm, 8 * (ls ** 2), eigvals, work, lwork, rwork, info)
+        lwork = ceiling(real(work(1)))
+        deallocate(work)
+    
+        allocate(work(lwork))
+        call zheev('V', 'U', 8 * (ls ** 2), tm, 8 * (ls ** 2), eigvals, work, lwork, rwork, info)
+        deallocate(work)
 
+        lyapunov = log(abs(minval(eigvals)))
 
 
         end function ly
@@ -297,10 +304,10 @@ contains
         end function invT
         
     function invM(A) result(Ainv)
-        complex(4), dimension(:,:), intent(in) :: A
-        complex(4), dimension(size(A,1),size(A,2)) :: Ainv
+        complex(8), dimension(:,:), intent(in) :: A
+        complex(8), dimension(size(A,1),size(A,2)) :: Ainv
         
-        complex(4), dimension(size(A,1)) :: work  ! work array for LAPACK
+        complex(8), dimension(size(A,1)) :: work  ! work array for LAPACK
         integer, dimension(size(A,1)) :: ipiv   ! pivot indices
         integer :: n, info
         
@@ -314,7 +321,7 @@ contains
         
         ! DGETRF computes an LU factorization of a general M-by-N matrix A
         ! using partial pivoting with row interchanges.
-        call CGETRF(n, n, Ainv, n, ipiv, info)
+        call ZGETRF(n, n, Ainv, n, ipiv, info)
         
         if (info /= 0) then
             stop 'Matrix is numerically singular!'
@@ -322,7 +329,7 @@ contains
         
         ! DGETRI computes the inverse of a matrix using the LU factorization
         ! computed by DGETRF.
-        call CGETRI(n, Ainv, n, ipiv, work, n, info)
+        call ZGETRI(n, Ainv, n, ipiv, work, n, info)
         
         if (info /= 0) then
             stop 'Matrix inversion failed!'
