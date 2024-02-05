@@ -1,11 +1,11 @@
 program threedim
     implicit none
     real, parameter :: PI=4.0*ATAN(1.0)
-    integer, parameter :: prsc = 4
+    integer, parameter :: prsc = 2
     integer, parameter :: range1 = 4
     integer, parameter :: range2 = 6
-    integer, parameter :: numloops = 4
-    integer, parameter :: latticesites = 8
+    integer, parameter :: numloops = 1
+    integer, parameter :: latticesites = 4
     complex(4), dimension(4,4), parameter :: gamma1 = reshape([0,0,0,1,0,0,1,0,0,1,0,0,1,0,0,0],[4,4])
     complex(4), dimension(4,4), parameter :: gamma2 = reshape([cmplx(0,0),cmplx(0,0),cmplx(0,0),&
     cmplx(0,-1),cmplx(0,0), cmplx(0,0),cmplx(0,1),cmplx(0,0),cmplx(0,0),cmplx(0,-1),cmplx(0,0),&
@@ -23,10 +23,11 @@ program threedim
 
    
     do loopnum = 1,numloops
-        !$OMP PARALLEL DO COLLAPSE(2) DEFAULT(NONE) SHARED(cherns, loopnum)
+        !$OMP PARALLEL DO COLLAPSE(2) NUM_THREADS(12) DEFAULT(NONE) SHARED(cherns, loopnum)
         do k = 1,2*range1*prsc+1
             do l = 1,range2*prsc+1
-                cherns(k,l,loopnum) = chernNumber(latticesites,real(k-range1*prsc-1)/real(prsc),real(l-1)/real(prsc),real(l-1)/real(2*prsc))
+                cherns(k,l,loopnum) = chernNumber(latticesites, &
+                real(k-range1*prsc-1)/real(prsc),real(l-1)/real(prsc),real(l-1)/real(2*prsc))
             end do
         end do
         !$OMP END PARALLEL DO
@@ -36,7 +37,7 @@ program threedim
 
 !Writing results to be processed
     cCherns = averageOverIndex(cherns)
-    open(1, file = 'data1.dat', status = 'old')
+    open(1, file = 'cherndata3d.dat', status = 'old')
         do k = 1,2*range1*prsc+1
             do l = 1,range2*prsc+1
                 write(1,*) cCherns(k,l)

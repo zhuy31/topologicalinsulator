@@ -3,7 +3,7 @@ program onedim
     real, parameter :: PI=4.0*ATAN(1.0)
     integer, parameter :: prsc = 4
     integer, parameter :: range1 = 4
-    integer, parameter :: range2 = 6
+    integer, parameter :: range2 = 32
     integer, parameter :: numloops = 4
     integer, parameter :: latticesites = 100
     complex(4), dimension(2,2) :: pauli1 = cmplx(reshape([[0,1,1,0]],[2,2]))
@@ -16,12 +16,12 @@ program onedim
     call system_clock(t1,r)
     
 
-    !$OMP PARALLEL DO COLLAPSE(3) DEFAULT(NONE) SHARED(cherns)
+    !$OMP PARALLEL DO COLLAPSE(3) NUM_THREADS(12) DEFAULT(NONE) SHARED(cherns)
         do loopnum = 1,numloops
-            do k = 1,range1*prsc+1
+            do k = 1,2*range1*prsc+1
                 do l = 1,range2*prsc+1
-                    cherns(k,l,loopnum) = chernNumber(latticesites,0.5,&
-                    real(l-1)/real(prsc),real(k-1)/real(prsc))
+                    cherns(k,l,loopnum) = chernNumber(latticesites,&
+                    real(k-1)/real(prsc)-real(range1),real(l-1)/real(prsc),0.5*real(l-1)/real(prsc))
                 end do
             end do
         end do
@@ -30,7 +30,7 @@ program onedim
 
     !Writing results to be processed
     cCherns = averageOverIndex(cherns)
-    open(1, file = 'data1.dat', status = 'old')
+    open(1, file = 'cherndata1d.dat', status = 'old')
         do k = 1,2*range1*prsc+1
             do l = 1,range2*prsc+1
                 write(1,*) cCherns(k,l)
@@ -147,8 +147,8 @@ function identityM(n) result(eye)
 
         end function outer
 
-function randomDiag(m,d,n) result(rDiag)
-    real, intent(in) :: d, m
+function randomDiag(mass,d,n) result(rDiag)
+    real, intent(in) :: d, mass
     integer, intent(in) :: n
     complex(4), dimension(n,n) :: rDiag
     real(4), dimension(n) :: diag, diag1
@@ -157,23 +157,20 @@ function randomDiag(m,d,n) result(rDiag)
     call random_number(diag1)
     call random_number(diag)
     do i = 1,n
-        diag(i) = (-2*log(diag(i))) ** (0.5) * cos(2 * PI * diag1(i))
-    end do 
-    do i = 1,n
-        rDiag(i,i) = (m + d * (diag(i) + 0.5 * (diag(i) ** 2) + (1.0/6.0)* (diag(i) ** 3)))
+        rDiag(i,i) = (mass) + d*10*log(diag(i)+0.01)
     end do 
 
     end function randomDiag
 
-function hamiltonian(n,m,d1,d2) result(H)
+function hamiltonian(n,mass,d1,d2) result(H)
     integer, intent(in) :: n
     complex(4), dimension(n,n) :: S
-    real, intent(in) :: m, d1, d2
+    real, intent(in) :: mass, d1, d2
     complex(4), dimension(2 * n,2 * n) :: H
     complex(4), dimension(n,n) :: randomT, randomM
 
     randomT = randomDiag(1.0,d2,n)
-    randomM = randomDiag(m,d1,n)
+    randomM = randomDiag(mass,d1,n)
 
     S = shift(n)
     H = 0.5 * cmplx(0,-1) * kron(pauli1, matmul(randomT,S - transpose(S))) + kron(pauli2, &
@@ -246,14 +243,14 @@ function hamiltonian(n,m,d1,d2) result(H)
     
         end function tr
     
-    function chernNumber(n,m,d1,d2) result(ch)
+    function chernNumber(n,mass,d1,d2) result(ch)
         integer, intent(in) :: n
         complex(4), dimension(2*n,2*n) :: H
-        real, intent(in) :: m, d1, d2
+        real, intent(in) :: mass, d1, d2
         complex(4), dimension(n,n) :: U, dU
         real(4) :: ch
         
-        H = spectralInv(hamiltonian(n,m,d1,d2),n)
+        H = spectralInv(hamiltonian(n,mass,d1,d2),n)
         U = H(1:n,n+1:2*n)
         dU = matrixDerivative(U,n)
         ch = real(tr(matmul(conjg(transpose(U)),dU),n))/(real(n))

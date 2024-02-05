@@ -2,10 +2,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 range1 = 4
-range2 = 24
+range2 = 6
 prsc = 4
 
-with open('/home/yuming/dev/research/stronglydisordered/data1.dat') as f:
+with open('cherndata1d.dat') as f:
     lines = f.readlines()
 
 chern = []
